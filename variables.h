@@ -35,6 +35,10 @@ typedef struct {
   PetscReal	x, y;
 } Cpt2D;
 
+typedef struct{
+  PetscReal L,R,U,D,F,B;
+}FaceStencil;
+
 typedef struct {
   Vec	Ubcs; // An ugly hack, waste of memory
 } BCS;

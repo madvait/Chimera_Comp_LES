@@ -5,7 +5,11 @@ extern PetscInt  NumberOfBodies,blank, immersed, invicid;
 extern PetscInt  fish,averaging;
 extern PetscInt  movefsi, rotatefsi, moveframe, STRONG_COUPLING;
 
-
+/* 
+***FLow Solver***
+1.) For turbulent flows: Compute Smagorinsky Constant if required
+2.) Time step using RK4.
+*/
 PetscErrorCode Flow_Solver(UserMG *usermg,IBMNodes *ibm, 
 			   FSInfo *fsi)
 {
@@ -208,6 +212,14 @@ PetscErrorCode Struc_Solver(UserMG *usermg,IBMNodes *ibm,
 /*   Time advancement! */
 /* ==================================================================================             */
 
+/*
+***Runge Kutta***
+1. For each RK (fluxorder) loop:
+    loop 1 (Euler Step)-> istage==0: Q1 = Qn - dt RHSn (same Qn to Qold) -> formBCS -> EqofState
+    loop 2 (step 2)    -> istage==1: Q2 = 3/4 Qn + 1/4 Q1 - 1/4 dt RHS1  -> formBCS -> EqofState
+    loop 3 (step 3)    -> istage==2: Qn+1 = 1/3 Qn + 2/3 Q2 - 2/3 dt RHS2-> formBCS -> EqofState
+2. IBM Interpolation
+*/
 PetscErrorCode RungeKutta(UserCtx *user, IBMNodes *ibm, 
 			  FSInfo *fsi)
 {
@@ -229,10 +241,10 @@ PetscErrorCode RungeKutta(UserCtx *user, IBMNodes *ibm,
    }
 
     PetscInt pseudot;
-    // pseudo time iteration
+    // pseudo time iteration (note, this is not relevant for the compressible code! this forloop runs only once)
     for(pseudot=0; pseudot<1;pseudot++) {
       for (bi=0; bi<user[0].block_number; bi++) {
-	for (istage=0; istage<fluxorder; istage++) {
+	      for (istage=0; istage<fluxorder; istage++) {
 
 	  formRHS(&(user[bi]), user[bi].Rhs, istage);
 
@@ -240,7 +252,7 @@ PetscErrorCode RungeKutta(UserCtx *user, IBMNodes *ibm,
 	  VecNorm(user[bi].Q, NORM_INFINITY, &normQ[bi]);
 	  PetscPrintf(PETSC_COMM_WORLD, "!!norm of RHS %le Q %le %le\n", normF_bk[bi], normQ[bi], user[bi].dt);
        	  // Advanced in time using RK scheme
-	  if (istage==0) 
+	  if (istage==0) // Calculates the First stage of the RK iteration
 	    VecWAXPY(user[bi].Q, alfa[istage] * user[bi].dt * user[bi].st, user[bi].Rhs, user[bi].Qold);
 	  else {
 	    /* Computes y = alpha x + beta y
@@ -252,7 +264,7 @@ PetscErrorCode RungeKutta(UserCtx *user, IBMNodes *ibm,
 	       Compute Q=Q+ beta * Qn */
 	    VecAXPY(user[bi].Q, beta[istage], user[bi].Qold);
 	  }
-	  //PetscPrintf(PETSC_COMM_WORLD, "!!FormBCS \n");
+
        	  FormBCS(&user[bi], alfa[istage]);
 	  PetscPrintf(PETSC_COMM_WORLD, "!!FormBCS \n");
        	  

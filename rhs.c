@@ -163,7 +163,7 @@ PetscErrorCode SetInitialCondition(UserCtx *user)
 	  M=user->Ma;
 	  q[k][j][i].rho=1.; //gamma
 	  //if (isothermal) q[k][j][i].rho=Twall;
-	  q[k][j][i].rhoW=1.0+0.1*(rand()%(1000)-500.)/500.0; //gamma*M; //Advait; brougth back perturbation to W   
+	  q[k][j][i].rhoW=1.0+0.1*(rand()%(1000)-500.)/500.0; //gamma*M; 
 	  q[k][j][i].rhoU=0.0;	   
 	  q[k][j][i].rhoV=0.0;
 	  /* if (isothermal) */
@@ -394,7 +394,7 @@ PetscErrorCode SetInitialCondition(UserCtx *user)
   //Amir
   //  
 
-  
+  if(channel||wavy){
   for (k=zs; k<ze; k++) {
     for (j=ys; j<ye; j++) {
       for (i=xs; i<xe; i++) {
@@ -408,7 +408,7 @@ PetscErrorCode SetInitialCondition(UserCtx *user)
       }	  
     }  
   }
-   
+  }
 
 /////////////////////////////////// Initialization from a specific u.dat
 
@@ -541,22 +541,21 @@ PetscErrorCode FormBCS(UserCtx *user, PetscReal alfa)
     
     for(k=zs; k<ze; k++){ 
       for (j=ys; j<ye; j++) {
-	for (i=xs; i<xe; i++) { 
-	  if (nvert[k][j][i]<1.5){	
-	    //fluxtemp+=q[k][j][i].rhoW/aj[k][j][i];
-	    vol+= 1./aj[k][j][i];
-	    Area+=zet[k][j][i].z;
-	    rhotemp+=q[k][j][i].rho*(1./aj[k][j][i]);
-	    
-	    fluxtemp+=q[k][j][i].rhoW*zet[k][j][i].z;
-	    
-	  }
-	  if (nvert[k][j][i]<1.5 && nvert[k][j][i]>0.5){
-	    vol0+= 1./aj[k][j][i];
-	    rhotemp0+=q[k][j][i].rho*(1./aj[k][j][i])/(mx-1)/(mz-1);
-	  }
+		for (i=xs; i<xe; i++) { 
+			if (nvert[k][j][i]<1.5){	
+				//fluxtemp+=q[k][j][i].rhoW/aj[k][j][i];
+				vol+= 1./aj[k][j][i];					  // Total Volume of Fluid Cells
+				Area+=zet[k][j][i].z;				      // 1/J ∂ζ/∂z
+				rhotemp+=q[k][j][i].rho*(1./aj[k][j][i]); // mass per unit cell
+				fluxtemp+=q[k][j][i].rhoW*zet[k][j][i].z; // 1/J rhoW ∂ζ/∂z
+				
+			}
+			if (nvert[k][j][i]<1.5 && nvert[k][j][i]>0.5){ // Immersed Boundary Node
+				vol0+= 1./aj[k][j][i];
+				rhotemp0+=q[k][j][i].rho*(1./aj[k][j][i])/(mx-1)/(mz-1);
+			}
 	  
-	}
+		}
       }
     }	
     MPI_Allreduce( &Area, &Areasum, 1, MPI_DOUBLE, MPI_SUM, PETSC_COMM_WORLD); 
@@ -567,7 +566,6 @@ PetscErrorCode FormBCS(UserCtx *user, PetscReal alfa)
     
     // if (ti==0 || ti==tistart) 
     //  user->flux=fluxsum;
-    
     ratio= (Areasum-fluxsum)/Areasum;
     ratiorho= (volsum-rhosum)/volsum;
     user->ratio=ratio;
@@ -577,13 +575,13 @@ PetscErrorCode FormBCS(UserCtx *user, PetscReal alfa)
     rhotemp=0.0;	
     for(k=zs; k<ze; k++){ 
       for (j=ys; j<ye; j++) {
-	for (i=xs; i<xe; i++) { 
-	  if (nvert[k][j][i]<1.5){	
-	    //fluxtemp+=q[k][j][i].rhoW/aj[k][j][i];
-	    rhotemp+=q[k][j][i].rho*(1./aj[k][j][i]);
-	    q[k][j][i].rho+=ratiorho;	    	    	    
-	  }
-	}
+		for (i=xs; i<xe; i++) { 
+	  		if (nvert[k][j][i]<1.5){	
+	    	//fluxtemp+=q[k][j][i].rhoW/aj[k][j][i];
+	    	rhotemp+=q[k][j][i].rho*(1./aj[k][j][i]);
+	    	q[k][j][i].rho+=ratiorho;	    	    	    
+	  		}
+		}
       }
     }	
     
@@ -600,36 +598,36 @@ PetscErrorCode FormBCS(UserCtx *user, PetscReal alfa)
   for (k=zs; k<ze; k++){
     for (j=ys; j<ye; j++){      	 
       if (xs==0) {
-	i=xs;
-	if (user->bctype[0]==3) {
-	  q[k][j][i].rho=q[k][j][i+1].rho;
-	  q[k][j][i].rhoU=0.;
-	  q[k][j][i].rhoV=q[k][j][i+1].rhoV;
-	  q[k][j][i].rhoW=q[k][j][i+1].rhoW;
-	  q[k][j][i].rhoE=q[k][j][i+1].rhoE;
-	} else 	if (user->bctype[0]==51) {
-	  q[k][j][i].rho=0.445;
-	  q[k][j][i].rhoU=0.311;
-	  q[k][j][i].rhoV=0.;
-	  q[k][j][i].rhoW=0.;
-	  q[k][j][i].rhoE=8.928;
-	}
+		i=xs;
+		if (user->bctype[0]==3) {
+		q[k][j][i].rho=q[k][j][i+1].rho;
+		q[k][j][i].rhoU=0.;
+		q[k][j][i].rhoV=q[k][j][i+1].rhoV;
+		q[k][j][i].rhoW=q[k][j][i+1].rhoW;
+		q[k][j][i].rhoE=q[k][j][i+1].rhoE;
+		} else 	if (user->bctype[0]==51) {
+		q[k][j][i].rho=0.445;
+		q[k][j][i].rhoU=0.311;
+		q[k][j][i].rhoV=0.;
+		q[k][j][i].rhoW=0.;
+		q[k][j][i].rhoE=8.928;
+		}
       }
       if (xe==mx) {
-	i=mx-1;
-	if (user->bctype[1]==3) {
-	  q[k][j][i].rho=q[k][j][i-1].rho;
-	  q[k][j][i].rhoU=0.;
-	  q[k][j][i].rhoV=q[k][j][i-1].rhoV;
-	  q[k][j][i].rhoW=q[k][j][i-1].rhoW;
-	  q[k][j][i].rhoE=q[k][j][i-1].rhoE;
-	} else 	if (user->bctype[0]==51) {
-	  q[k][j][i].rho=0.5;
-	  q[k][j][i].rhoU=0.;
-	  q[k][j][i].rhoV=0.;
-	  q[k][j][i].rhoW=0.;
-	  q[k][j][i].rhoE=1.4275;
-	}
+	  i=mx-1;
+		if (user->bctype[1]==3) {
+		q[k][j][i].rho=q[k][j][i-1].rho;
+		q[k][j][i].rhoU=0.;
+		q[k][j][i].rhoV=q[k][j][i-1].rhoV;
+		q[k][j][i].rhoW=q[k][j][i-1].rhoW;
+		q[k][j][i].rhoE=q[k][j][i-1].rhoE;
+		} else 	if (user->bctype[0]==51) {
+		q[k][j][i].rho=0.5;
+		q[k][j][i].rhoU=0.;
+		q[k][j][i].rhoV=0.;
+		q[k][j][i].rhoW=0.;
+		q[k][j][i].rhoE=1.4275;
+		}
       }      
       
     }
@@ -646,20 +644,20 @@ PetscErrorCode FormBCS(UserCtx *user, PetscReal alfa)
 	  q[k][j][i].rhoV=0.;
 	  q[k][j][i].rhoW=q[k][j+1][i].rhoW;
 	  q[k][j][i].rhoE=q[k][j+1][i].rhoE;
-	} else if (user->bctype[2]==10) { //inviscid vortex
+	} 
+	else if (user->bctype[2]==10) { //inviscid vortex
 	q[k][j][i].rho=q[k][j+1][i].rho;
 	q[k][j][i].rhoU=0.;
 	q[k][j][i].rhoV=q[k][j+1][i].rhoV;
 	q[k][j][i].rhoW=q[k][j+1][i].rhoW;
 	q[k][j][i].rhoE=q[k][j+1][i].rhoE;
-	} else if (user->bctype[2]==1) {
+	} else if (user->bctype[2]==1) { // No Slip y wall
 	  // q[k][j][i].rho=q[k][j+1][i].rho;
-	  // q[k][j][i].rho=2.0*q[k][j+1][i].rho-q[k][j+2][i].rho;
-	  // lp[k][j][i]=lp[k][j+1][i];				
+	  // q[k][j][i].rho=2.0*q[k][j+1][i].rho-q[k][j+2][i].rho;			
 	  q[k][j][i].rhoU=0.0;
 	  q[k][j][i].rhoV=0.0;
 	  q[k][j][i].rhoW=0.0;
-	  if (isothermal && alfa!=0 && nvert[k][j][i]<1.5){
+	  if (isothermal==2 && alfa!=0 && nvert[k][j][i]<1.5){
 	    /* // A=Tw/(gamma M^2) */
 	    /*  AA=Twall/(user->gamma*user->Ma*user->Ma); */
 	    /* // B=(T_f-Tw)/(gamma M^2)=p_f/rho_f-Tw/(gamma M^2) */
@@ -724,12 +722,15 @@ PetscErrorCode FormBCS(UserCtx *user, PetscReal alfa)
 		q[k][j][i].rho=qold[k][j][i].rho - user->dt*alfa*L[0]/a_sound/a_sound;
 		lp[k][j][i]= q[k][j][i].rho*Twall/(user->gamma*user->Ma*user->Ma);
 	      }
-	  } else if (isothermal==0) {
-	    q[k][j][i].rho=q[k][j+1][i].rho;
+	  } else { //else if (isothermal==0) //advait!
 	    lp[k][j][i]=lp[k][j+1][i];
+		//q[k][j][i].rho=q[k][j+1][i].rho; // Just check the boundary conditions again
+		q[k][j][i].rho = lp[k][j][i]*(user->gamma*user->Ma*user->Ma);
+		q[k][j][i].rhoE = lp[k][j][i]/(user->gamma-1);
+
 	  }
 
-	  q[k][j][i].rhoE=lp[k][j][i]/(user->gamma-1);
+	//   q[k][j][i].rhoE=lp[k][j][i]/(user->gamma-1);
 	}	
       }
 
@@ -769,7 +770,7 @@ PetscErrorCode FormBCS(UserCtx *user, PetscReal alfa)
 	  q[k][j][i].rhoW=0.0;
 	  //lp[k][j][i]=lp[k][j-1][i];	  
 	  
-	  if (isothermal){
+	  if (isothermal == 2){
 	    /* // A=Tw/(gamma M^2) */
 	    /*  AA=Twall/(user->gamma*user->Ma*user->Ma); */
 	    /* // B=(T_f-Tw)/(gamma M^2)=p_f/rho_f-Tw/(gamma M^2) */
@@ -815,7 +816,10 @@ PetscErrorCode FormBCS(UserCtx *user, PetscReal alfa)
 	    q[k][j][i].rho=qold[k][j][i].rho - user->dt*alfa*L[0]/a_sound/a_sound;
 	    lp[k][j][i]= q[k][j][i].rho*Twall/(user->gamma*user->Ma*user->Ma);
 	  }
-	  else {	    
+	  else if (isothermal==1){
+		q[k][j][i].rho=lp[k][j][i]*(user->gamma*user->Ma*user->Ma);
+		lp[k][j][i]=lp[k][j-1][i];
+	  }else {	    
 	    q[k][j][i].rho=q[k][j-1][i].rho;
 	    lp[k][j][i]=lp[k][j-1][i];
 	  }
@@ -1362,7 +1366,6 @@ PetscErrorCode formViscous(UserCtx *user, Vec Visc)
 
   Vec		Csi = user->lCsi, Eta = user->lEta, Zet = user->lZet;
   
-  
   Cmpnts        ***ucat, ucat_h;
   
   Cmpnts	***csi, ***eta, ***zet;
@@ -1395,6 +1398,8 @@ PetscErrorCode formViscous(UserCtx *user, Vec Visc)
   PetscReal     div, rho_c, sigma_c; 
   PetscReal     dpdc,dpde,dpdz;
   PetscScalar	solid,innerblank;
+  FaceStencil rho;
+  PetscReal u[3];
 
   solid      = 0.5;
   innerblank = 7.;
@@ -1462,11 +1467,12 @@ PetscErrorCode formViscous(UserCtx *user, Vec Visc)
   
 
   
-  PetscReal ***lnu_t;
+  PetscReal ***lnu_t, nut_norm;
+
+  VecNorm(user->Nu_t,NORM_INFINITY,&nut_norm);
+  PetscPrintf(PETSC_COMM_WORLD,"Max Nu_t Set to %f\n", &nut_norm);
   
-  if(les) {
-    DMDAVecGetArray(da, user->lNu_t, &lnu_t);
-  } else if (rans) {    
+  if(les || rans) {
     DMDAVecGetArray(da, user->lNu_t, &lnu_t);
   }
   
@@ -1481,12 +1487,13 @@ PetscErrorCode formViscous(UserCtx *user, Vec Visc)
   for (k=lzs; k<lze; k++) {
     for (j=lys; j<lye; j++) {
       for (i=lxs-1; i<lxe; i++) {
-			  
+	// ∂ui/∂ξ --> cartesian velocity gradient in curvilinear
 	dudc = ucat[k][j][i+1].x - ucat[k][j][i].x;
 	dvdc = ucat[k][j][i+1].y - ucat[k][j][i].y;
 	dwdc = ucat[k][j][i+1].z - ucat[k][j][i].z;
 	dpdc = p[k][j][i+1]/q[k][j][i+1].rho - p[k][j][i]/q[k][j][i].rho;
 	
+	// ∂ui/∂η --> cartesian velocity gradient in curvilinear
 	if ((nvert[k][j+1][i  ]> solid && nvert[k][j+1][i  ]<innerblank)  ||
 	    (nvert[k][j+1][i+1]> solid && nvert[k][j+1][i+1]<innerblank)) {
 	  dude = (ucat[k][j  ][i+1].x + ucat[k][j  ][i].x -
@@ -1521,6 +1528,7 @@ PetscErrorCode formViscous(UserCtx *user, Vec Visc)
 	  
 	}
 
+	// ∂ui/∂ζ --> cartesian velocity gradient in curvilinear	
 	if ((nvert[k+1][j][i  ]> solid && nvert[k+1][j][i  ]<innerblank)||
 	    (nvert[k+1][j][i+1]> solid && nvert[k+1][j][i+1]<innerblank)) {
 	  dudz = (ucat[k  ][j][i+1].x + ucat[k  ][j][i].x -
@@ -1530,7 +1538,10 @@ PetscErrorCode formViscous(UserCtx *user, Vec Visc)
 	  dwdz = (ucat[k  ][j][i+1].z + ucat[k  ][j][i].z -
 		  ucat[k-1][j][i+1].z - ucat[k-1][j][i].z) * 0.5;
 	  dpdz = (ucat[k  ][j][i+1].z + ucat[k  ][j][i].z -
-		  ucat[k-1][j][i+1].z - ucat[k-1][j][i].z) * 0.5;		
+		  ucat[k-1][j][i+1].z - ucat[k-1][j][i].z) * 0.5;
+	  
+	  dpdz = (p[k][j][i+1]/q[k][j][i+1].rho + p[k][j][i]/q[k][j][i].rho -
+		  p[k-1][j][i+1]/q[k-1][j][i+1].rho - p[k][j][i]/q[k][j][i].rho) * 0.5;		
 	}
 	else if ((nvert[k-1][j][i  ]> solid && nvert[k-1][j][i  ]<innerblank) ||
 		 (nvert[k-1][j][i+1]> solid && nvert[k-1][j][i+1]<innerblank)) {
@@ -1556,23 +1567,40 @@ PetscErrorCode formViscous(UserCtx *user, Vec Visc)
 	  
 	}
 	
-	// metrics at i+1/2
+	// metrics at i+1/2 (All these quantities have 1/J multiplied to it)
+	// ∂ξ/∂x, ∂ξ/∂y, ∂ξ/∂z
 	csi0 = 0.5*(csi[k][j][i].x+csi[k][j][i+1].x);
 	csi1 = 0.5*(csi[k][j][i].y+csi[k][j][i+1].y);
 	csi2 = 0.5*(csi[k][j][i].z+csi[k][j][i+1].z);
 	
+	// ∂η/∂x, ∂η/∂y, ∂η/∂z
 	eta0 = 0.5*(eta[k][j][i].x+eta[k][j][i+1].x);
 	eta1 = 0.5*(eta[k][j][i].y+eta[k][j][i+1].y);
 	eta2 = 0.5*(eta[k][j][i].z+eta[k][j][i+1].z);
 	
+	// ∂ζ/∂x, ∂ζ/∂y, ∂ζ/∂z
 	zet0 = 0.5*(zet[k][j][i].x+zet[k][j][i+1].x);
 	zet1 = 0.5*(zet[k][j][i].y+zet[k][j][i+1].y);
 	zet2 = 0.5*(zet[k][j][i].z+zet[k][j][i+1].z);
 	
+	/* Calculation of (2 mu) ∂ξq / ∂xr * S_mr : m = 1-> rhoU,2->rhoV,3->rhoW 
+		S_mr = (1/2) * ([∂ξp / ∂xm * ∂ur / ∂ξp] + [∂ξp / ∂xr * ∂um / ∂ξp])
+		substitute and expand:
+		|∂ξq/∂xr * ∂ξp/∂xm * ∂ur/∂ξp| + |∂ξq/∂xr * ∂ξp/∂xr * ∂um/∂ξp|
+		Remember that q is the index for flux direction, for this loop, q==1
+		This term:
+		∂ξq/∂xr * ∂ξp/∂xr
+		Are the metrics of the transformation;
+		The other term:
+		∂ξp/∂xm * ∂ur/∂ξp
+		calculate these terms and multiply with respective values
+	*/
+	// ∂ξr / ∂xj * ∂ξm / ∂xj
 	g11 = csi0 * csi0 + csi1 * csi1 + csi2 * csi2;
 	g21 = eta0 * csi0 + eta1 * csi1 + eta2 * csi2;
 	g31 = zet0 * csi0 + zet1 * csi1 + zet2 * csi2;
 	
+	// ∂u/∂ξi* ∂ξi/∂xj
 	r11 = dudc * csi0 + dude * eta0 + dudz * zet0;
 	r21 = dvdc * csi0 + dvde * eta0 + dvdz * zet0;
 	r31 = dwdc * csi0 + dwde * eta0 + dwdz * zet0;
@@ -1591,6 +1619,9 @@ PetscErrorCode formViscous(UserCtx *user, Vec Visc)
 	    , L, and density scale rho_R. P_R, rho_R, L, and U are all scales (consts). 
 	    There is no need to multiply by the density as var. */
 	
+	// for les-> the viscosity is normalized with q
+	if(les)nu = 1./user->ren*0.5*(q[k][j][i].rho+q[k][j][i+1].rho);
+	
 	//	double nu = 1./user->ren*0.5*(q[k][j][i].rho+q[k][j][i+1].rho), nu_t=0;
 	if (Sutherland) {
 	  //Tr should be 1 for free stream to get exactly 1/Re
@@ -1604,6 +1635,10 @@ PetscErrorCode formViscous(UserCtx *user, Vec Visc)
 	    nu=1./user->ren*(1+C_sutherland/Tref)/(Tr+C_sutherland/Tref)*pow(Tr, 1.5);
 	}
 
+	/* This is S̃_pp = (∂ξ/∂x)(∂ũ/∂ξ) + (∂η/∂x)(∂ũ/∂η) + (∂ζ/∂x)(∂ũ/∂ζ)
+    				 + (∂ξ/∂y)(∂ṽ/∂ξ) + (∂η/∂y)(∂ṽ/∂η) + (∂ζ/∂y)(∂ṽ/∂ζ)
+     					+ (∂ξ/∂z)(∂ŵ/∂ξ) + (∂η/∂z)(∂ŵ/∂η) + (∂ζ/∂z)(∂ŵ/∂ζ)
+		Which appears in every CompVar term once as divergence */
 	div = 2./3.*(dudc * csi0 + dude * eta0 + dudz * zet0 +
 		     dvdc * csi1 + dvde * eta1 + dvdz * zet1 +
 		     dwdc * csi2 + dwde * eta2 + dwdz * zet2 );
@@ -1629,6 +1664,7 @@ PetscErrorCode formViscous(UserCtx *user, Vec Visc)
 	  ucat_h.z=0.5*(ucat[k][j][i+1].z + ucat[k][j][i].z);
 	}
 
+	// Calculating Kr: for some reason this is not calculated properly in the old code!!
 	fp1[k][j][i].rhoE  =  (fp1[k][j][i].rhoU * ucat_h.x +
 			       fp1[k][j][i].rhoV * ucat_h.y +
 			       fp1[k][j][i].rhoW * ucat_h.z ) 
@@ -1637,11 +1673,14 @@ PetscErrorCode formViscous(UserCtx *user, Vec Visc)
 	
 	if( les || rans) {//(rans && ti>0) ) {
 	  //nu_t = pow( 0.5 * ( sqrt(lnu_t[k][j][i]) + sqrt(lnu_t[k][j][i+1]) ), 2.0) * Sabs;
-	  nu_t = 0.5 * (lnu_t[k][j][i]*lsigma[k][j][i].x + lnu_t[k][j][i+1]*lsigma[k][j][i+1].x);
+	
+		// Advait 
+	  nu_t =  0.5 * (lnu_t[k][j][i]*lsigma[k][j][i].x + lnu_t[k][j][i+1]*lsigma[k][j][i+1].x);
+	  //nu_t = 0.5 * (lnu_t[k][j][i]*lsigma[k][j][i].x + lnu_t[k][j][i+1]*lsigma[k][j][i+1].x);// sigma to calculate nu_t?
 	  rho_c = 0.5* (q[k][j][i].rho+q[k][j][i+1].rho);
 	  sigma_c = 0.5*(lsigma[k][j][i].x + lsigma[k][j][i+1].x);
 	  if ( (user->bctype[0]==1 && i==0) || (user->bctype[1]==1 && i==mx-2) ) nu_t=0;    
-	  
+		// t is the same as -2mut(Srm -1/3 Spp delrm) stress, S2 is sqrt(SrmSmr) and Ss is the Subgrid Kinetic Energy	  
 	  t.x=  (g11 * dudc + g21 * dude + g31 * dudz + 
 		 r11 * csi0 + r21 * csi1 + r31 * csi2 -div *csi0) * ajc * (nu_t*rho_c); 
 	  t.y=  (g11 * dvdc + g21 * dvde + g31 * dvdz + 
@@ -1652,17 +1691,19 @@ PetscErrorCode formViscous(UserCtx *user, Vec Visc)
 		 (r22-div)*(r22-div)+r23*r23+r31*r31+r32*r32+(r33-div)*(r33-div));
 	  double filter  = pow( 1./aj[k][j][i],1./3.);
 	  
-	  Ss.x=-  S2*pow(filter,2.0)*CI*2.0/3.0*csi0*rho_c*sigma_c;
-	  Ss.y=-  S2*pow(filter,2.0)*CI*2.0/3.0*csi1*rho_c*sigma_c;
-	  Ss.z=-  S2*pow(filter,2.0)*CI*2.0/3.0*csi2*rho_c*sigma_c;	  	  
+	  Ss.x=-  S2*pow(filter,2.0)*CI*2.0/3.0*csi0*rho_c*sigma_c ;
+	  Ss.y=-  S2*pow(filter,2.0)*CI*2.0/3.0*csi1*rho_c*sigma_c ;
+	  Ss.z=-  S2*pow(filter,2.0)*CI*2.0/3.0*csi2*rho_c*sigma_c ;	  	  
 	  
 	  fp1[k][j][i].rhoU += t.x+Ss.x;
 	  fp1[k][j][i].rhoV += t.y+Ss.y;
 	  fp1[k][j][i].rhoW += t.z+Ss.z;
 	  	  
-	  alpha1[k][j][i].x=t.x+Ss.x;		
-	  alpha1[k][j][i].y=t.y+Ss.y;		
-	  alpha1[k][j][i].z=t.z+Ss.z;			  	 	  
+	  // Not exactly a part of viscous flux, it is just Calculated for RHS
+	  // Subgrid stress Calculated Separately?
+	  alpha1[k][j][i].x=(t.x+Ss.x);		
+	  alpha1[k][j][i].y=(t.y+Ss.y);		
+	  alpha1[k][j][i].z=(t.z+Ss.z);			  	 	  
 	  
 	}
 	
@@ -1789,6 +1830,9 @@ PetscErrorCode formViscous(UserCtx *user, Vec Visc)
 	ajc = 0.5*(aj[k][j][i]+aj[k][j+1][i]);
 	
 	//	double nu = 1./user->ren*0.5*(q[k][j][i].rho+q[k][j+1][i].rho), nu_t = 0;
+
+	if(les)nu = 1./user->ren*0.5*(q[k][j][i].rho+q[k][j][i+1].rho);
+
 	if (Sutherland) {
 	  //Tr should be 1 for free stream to get exactly 1/Re
 	  // nu=1/Re * (1+C/Tref)/(T/Tref+C/Tref)(T/Tref)^3/2
@@ -1836,6 +1880,7 @@ PetscErrorCode formViscous(UserCtx *user, Vec Visc)
 	
 	if( les || rans) {// (rans && ti>0) ) {
 	  //nu_t = pow( 0.5 * ( sqrt(lnu_t[k][j][i]) + sqrt(lnu_t[k][j+1][i]) ), 2.0) * Sabs;
+	 // j flux multiplied by q? whyy?? Advait 
 	  //nu_t = 0.5 * (lnu_t[k][j][i]* q[k][j][i].rho+ lnu_t[k][j+1][i]*q[k][j+1][i].rho); 
 	  nu_t = 0.5 * (lnu_t[k][j][i]*lsigma[k][j][i].y+ lnu_t[k][j+1][i]*lsigma[k][j+1][i].y);
 	  rho_c = 0.5* (q[k][j][i].rho+q[k][j+1][i].rho); 
@@ -1853,17 +1898,17 @@ PetscErrorCode formViscous(UserCtx *user, Vec Visc)
 		 (r22-div)*(r22-div)+r23*r23+r31*r31+r32*r32+(r33-div)*(r33-div));
 	  double filter  = pow( 1./aj[k][j][i],1./3.);
 	  
-	  Ss.x=-  S2*pow(filter,2.0)*CI*2.0/3.0*eta0*rho_c*sigma_c;
-	  Ss.y=-  S2*pow(filter,2.0)*CI*2.0/3.0*eta1*rho_c*sigma_c;
-	  Ss.z=-  S2*pow(filter,2.0)*CI*2.0/3.0*eta2*rho_c*sigma_c;	  	  
+	  Ss.x=-  S2*pow(filter,2.0)*CI*2.0/3.0*eta0*rho_c*sigma_c ;
+	  Ss.y=-  S2*pow(filter,2.0)*CI*2.0/3.0*eta1*rho_c*sigma_c ;
+	  Ss.z=-  S2*pow(filter,2.0)*CI*2.0/3.0*eta2*rho_c*sigma_c ;	  	  
 	  
 	  fp2[k][j][i].rhoU += t.x+Ss.x;
 	  fp2[k][j][i].rhoV += t.y+Ss.y;
 	  fp2[k][j][i].rhoW += t.z+Ss.z;	  
 	  
-	  alpha2[k][j][i].x=t.x+Ss.x;		
-	  alpha2[k][j][i].y=t.y+Ss.y;		
-	  alpha2[k][j][i].z=t.z+Ss.z;			  	  
+	  alpha2[k][j][i].x=(t.x+Ss.x);		
+	  alpha2[k][j][i].y=(t.y+Ss.y);		
+	  alpha2[k][j][i].z=(t.z+Ss.z);			  	  
 	}					
 	
 
@@ -1984,6 +2029,9 @@ PetscErrorCode formViscous(UserCtx *user, Vec Visc)
 	ajc = 0.5*(aj[k][j][i]+aj[k+1][j][i]);
 
 	//double nu = 1./user->ren*0.5*(q[k][j][i].rho+q[k+1][j][i].rho), nu_t =0;
+
+	if(les)nu = 1./user->ren*0.5*(q[k][j][i].rho+q[k][j][i+1].rho);
+
 	if (Sutherland) {
 	  //Tr=p/rho should be 1 for free stream to get exactly 1/Re
 	  // nu=1/Re * (1+C/Tref)/(T/Tref+C/Tref)(T/Tref)^3/2
@@ -2054,17 +2102,17 @@ PetscErrorCode formViscous(UserCtx *user, Vec Visc)
 		 (r22-div)*(r22-div)+r23*r23+r31*r31+r32*r32+(r33-div)*(r33-div));
 	  double filter  = pow( 1./aj[k][j][i],1./3.);
 	  
-	  Ss.x=-  S2*pow(filter,2.0)*CI*2.0/3.0*zet0*rho_c*sigma_c;
-	  Ss.y=-  S2*pow(filter,2.0)*CI*2.0/3.0*zet1*rho_c*sigma_c;
-	  Ss.z=-  S2*pow(filter,2.0)*CI*2.0/3.0*zet2*rho_c*sigma_c;	  	  
+	  Ss.x=-  S2*pow(filter,2.0)*CI*2.0/3.0*zet0*rho_c*sigma_c ;
+	  Ss.y=-  S2*pow(filter,2.0)*CI*2.0/3.0*zet1*rho_c*sigma_c ;
+	  Ss.z=-  S2*pow(filter,2.0)*CI*2.0/3.0*zet2*rho_c*sigma_c ;	  	  
 	  
 	  fp3[k][j][i].rhoU += t.x+Ss.x;
 	  fp3[k][j][i].rhoV += t.y+Ss.y;
 	  fp3[k][j][i].rhoW += t.z+Ss.z;
 	  					
-	  alpha3[k][j][i].x=t.x+Ss.x;		
-	  alpha3[k][j][i].y=t.y+Ss.y;		
-	  alpha3[k][j][i].z=t.z+Ss.z;	  	  	  
+	  alpha3[k][j][i].x=(t.x+Ss.x);		
+	  alpha3[k][j][i].y=(t.y+Ss.y);		
+	  alpha3[k][j][i].z=(t.z+Ss.z);	  	  	  
 	}
 			
       }
@@ -2072,14 +2120,16 @@ PetscErrorCode formViscous(UserCtx *user, Vec Visc)
   }
   
   /* DMDAVecRestoreArray(da, user->lKAj, &kaj); */
-  if (les)
-    DMDAVecGetArray(da, user->lBBeta, &bbeta);    
-  
+  if (les){
+	DMDAVecGetArray(da, user->lBBeta, &bbeta);
+}
+
   for (k=lzs; k<lze; k++) {
     for (j=lys; j<lye; j++) {
       for (i=lxs; i<lxe; i++) {	
 	visc[k][j][i].rho  = 0.;
 
+	// Central Scheme for Viscous Fluxes
 	if (twoD!=1)
 	visc[k][j][i].rhoU =
 	  (fp1[k][j][i].rhoU - fp1[k][j][i-1].rhoU +
@@ -2100,40 +2150,55 @@ PetscErrorCode formViscous(UserCtx *user, Vec Visc)
 	   fp3[k][j][i].rhoE - fp3[k-1][j][i].rhoE );
 	if (les && j>2 && j < my-2 && nvert[k][j][i]<0.5){
 	  
-	  visc[k][j][i].rhoE += 1/q[k][j][i].rho*( // changed from -= to += ---iman        
-				 q[k][j][i].rhoU *
-				 (alpha1[k][j][i].x - alpha1[k][j][i-1].x +
-				  alpha2[k][j][i].x - alpha2[k][j-1][i].x +
-				  alpha3[k][j][i].x - alpha3[k-1][j][i].x ) +
-				 q[k][j][i].rhoV *
-				 (alpha1[k][j][i].y - alpha1[k][j][i-1].y +
-				  alpha2[k][j][i].y - alpha2[k][j-1][i].y +
-				  alpha3[k][j][i].y - alpha3[k-1][j][i].y )+
-				 q[k][j][i].rhoW *
-				 (alpha1[k][j][i].z - alpha1[k][j][i-1].z +
-				  alpha2[k][j][i].z - alpha2[k][j-1][i].z +
-				  alpha3[k][j][i].z - alpha3[k-1][j][i].z));
-	  
-	
-	  ////////////////// 1/23/2023
+	//   visc[k][j][i].rhoE += 1/q[k][j][i].rho*( // changed from -= to += ---iman        
+	// 			 q[k][j][i].rhoU *
+	// 			 (alpha1[k][j][i].x - alpha1[k][j][i-1].x +
+	// 			  alpha2[k][j][i].x - alpha2[k][j-1][i].x +
+	// 			  alpha3[k][j][i].x - alpha3[k-1][j][i].x ) +
+	// 			 q[k][j][i].rhoV *
+	// 			 (alpha1[k][j][i].y - alpha1[k][j][i-1].y +
+	// 			  alpha2[k][j][i].y - alpha2[k][j-1][i].y +
+	// 			  alpha3[k][j][i].y - alpha3[k-1][j][i].y )+
+	// 			 q[k][j][i].rhoW *
+	// 			 (alpha1[k][j][i].z - alpha1[k][j][i-1].z +
+	// 			  alpha2[k][j][i].z - alpha2[k][j-1][i].z +
+	// 			  alpha3[k][j][i].z - alpha3[k-1][j][i].z));
+
+	// Advait Added
+	/* Calculate Metrics at Edges of All the blocks.
+		*Notation: csi_faces-> L,R; eta_faces-> U,D; zeta_faces-> F,B 
+		To calculate α = uᵢ ∂	(ρ x ξ𐞥ⱼ x τᵢⱼ)
+							∂ξ𐞥
+				Simplified to:
+					 α = uᵢ ∂ (ρ τᵢⱼ ξ𐞥ⱼ)
+							∂ξ𐞥	   J
+		The metrics (ξ𐞥ⱼ) are calculated at the face centers for Each of the six faces
+			So, csi0,csi1,csi2 is ∂ξ/∂x, ∂ξ/∂y, ∂ξ/∂z the same as csi[k][j][i].x, csi[k][j][i].y, csi[k][j][i].z ;
+		*/
+		rho.L = (q[k][j][i].rho + q[k][j][i-1].rho)*0.5; rho.R = (q[k][j][i+1].rho + q[k][j][i].rho)*0.5;
+		rho.D = (q[k][j][i].rho + q[k][j-1][i].rho)*0.5; rho.U = (q[k][j+1][i].rho + q[k][j][i].rho)*0.5;
+		rho.B = (q[k][j][i].rho + q[k-1][j][i].rho)*0.5; rho.F = (q[k+1][j][i].rho + q[k][j][i].rho)*0.5;
+
+		u[0] = q[k][j][i].rhoU/q[k][j][i].rho ; u[1] = q[k][j][i].rhoV/q[k][j][i].rho ; u[2] = q[k][j][i].rhoW/q[k][j][i].rho ;
+
+		visc[k][j][i].rhoE += 	u[0]* (
+									rho.R*alpha1[k][j][i].x - rho.L*alpha1[k][j][i-1].x+
+									rho.U*alpha2[k][j][i].x - rho.D*alpha2[k][j-1][i].x+
+									rho.F* alpha3[k][j][i].x - rho.B*alpha3[k-1][j][i].x) +
+							 	u[1]*(		
+									rho.R*alpha1[k][j][i].y - rho.L*alpha1[k][j][i-1].y+
+									rho.U*alpha2[k][j][i].y - rho.D*alpha2[k][j-1][i].y+
+									rho.F* alpha3[k][j][i].y - rho.B*alpha3[k-1][j][i].y) +
+								u[2]*(
+									rho.R*alpha1[k][j][i].z - rho.L*alpha1[k][j][i-1].z+
+									rho.U*alpha2[k][j][i].z - rho.D*alpha2[k][j-1][i].z+
+									rho.F* alpha3[k][j][i].z - rho.B*alpha3[k-1][j][i].z);								
+		  ////////////////// 1/23/2023
 	  //visc[k][j][i].rhoE -=bbeta[k][j][i]/2.0*pow(user->Ma,2.) ;
-	}
-      }
+			}// End if LES
+		}
+	  }
     }
-  }
-  /*   for (k=zs; k<ze; k++) { */
-  /*     for (j=ys; j<ye; j++) { */
-  /*       for (i=xs; i<xe; i++) { */
-  /* 	if (i==1 && j==1 && k==21) PetscPrintf(PETSC_COMM_SELF, "@ i= %d j=%d k=%d  fp1.z is %.15le \n",i,j,k,fp1[k][j][i].z); */
-  /* 	if (i==0 && j==1 && k==21) PetscPrintf(PETSC_COMM_SELF, "@ i= %d j=%d k=%d  fp1.z is %.15le \n",i,j,k,fp1[k][j][i].z); */
-  /* 	if (i==1 && j==1 && k==21) PetscPrintf(PETSC_COMM_SELF, "@ i= %d j=%d k=%d  fp2.z is %.15le \n",i,j,k,fp2[k][j][i].z); */
-  /* 	if (i==1 && j==0 && k==21) PetscPrintf(PETSC_COMM_SELF, "@ i= %d j=%d k=%d  fp2.z is %.15le \n",i,j,k,fp2[k][j][i].z); */
-  /* 	if (i==1 && j==1 && k==21) PetscPrintf(PETSC_COMM_SELF, "@ i= %d j=%d k=%d  fp3.z is %.15le \n",i,j,k,fp3[k][j][i].z); */
-  /* 	if (i==1 && j==1 && k==20) PetscPrintf(PETSC_COMM_SELF, "@ i= %d j=%d k=%d  fp3.z is %.15le \n",i,j,k,fp3[k][j][i].z); */
-  
-  /*       } */
-  /*     } */
-  /*   }  */
   
   DMDAVecRestoreArray(cda, user->lQ, &q);
   DMDAVecRestoreArray(cda, Visc,  &visc);
@@ -2154,17 +2219,6 @@ PetscErrorCode formViscous(UserCtx *user, Vec Visc)
   DMDAVecRestoreArray(da, user->lAj, &aj);
   
   DMDAVecRestoreArray(fda, user->lUcat,  &ucat);
-  /* DMDAVecRestoreArray(fda, user->lICsi, &icsi); */
-  /* DMDAVecRestoreArray(fda, user->lIEta, &ieta); */
-  /* DMDAVecRestoreArray(fda, user->lIZet, &izet); */
-  
-  /* DMDAVecRestoreArray(fda, user->lJCsi, &jcsi); */
-  /* DMDAVecRestoreArray(fda, user->lJEta, &jeta); */
-  /* DMDAVecRestoreArray(fda, user->lJZet, &jzet); */
-  
-  /* DMDAVecRestoreArray(fda, user->lKCsi, &kcsi); */
-  /* DMDAVecRestoreArray(fda, user->lKEta, &keta); */
-  /* DMDAVecRestoreArray(fda, user->lKZet, &kzet); */
   
   
   
@@ -2186,17 +2240,10 @@ PetscErrorCode formViscous(UserCtx *user, Vec Visc)
     DMDAVecRestoreArray(da, user->lNu_t, &lnu_t);
   }
   
-  PetscReal norm;//, norm_rho, norm_rU, norm_rV, norm_rW, norm_rE;
-  /* VecStrideNorm(Visc,0, NORM_INFINITY, &norm_rho); */
-  /* VecStrideNorm(Visc,1, NORM_INFINITY, &norm_rU); */
-  /* VecStrideNorm(Visc,2, NORM_INFINITY, &norm_rV); */
-  /* VecStrideNorm(Visc,3, NORM_INFINITY, &norm_rW); */
-  /* VecStrideNorm(Visc,4, NORM_INFINITY, &norm_rE); */
+  PetscReal norm;
 
   VecNorm(Visc, NORM_INFINITY, &norm);
   PetscPrintf(PETSC_COMM_WORLD, "!!norm of Visc %le Sutherland %d Tref %f\n", norm, Sutherland, Tref);
-  // PetscPrintf(PETSC_COMM_WORLD, "!!norm of Visc %le, rho %f, rhoU, %f, rhoV %f, rhoW %f, rhoE, %f \n", norm, norm_rho, norm_rU, norm_rV, norm_rW, norm_rE);
-  
   VecDestroy(&Fp1);
   VecDestroy(&Fp2);
   VecDestroy(&Fp3);
@@ -2418,6 +2465,7 @@ PetscReal Fp_skew(PetscReal u0, PetscReal u1, PetscReal u2, PetscReal u3, PetscR
 }
 PetscReal Fp_2(PetscReal u[4], PetscReal v[4])
 {
+  // doi:10.1006/jcph.2000.6492  non-dissipative skew central for convective fluxes
   PetscReal uv;
   uv=(u[1]+u[2])*(v[1]+v[2])/3.0 - 1./24.*(u[0]*v[0]+u[0]*v[2]+u[1]*v[1]+u[1]*v[3]+u[2]*v[2]+u[2]*v[0]+u[3]*v[1]+u[3]*v[3]);
   return(uv);
@@ -2432,9 +2480,17 @@ PetscReal Fp_1(PetscReal u[4], PetscReal v[4])
 
 PetscReal Fp4(PetscReal u[4])
 {
+  // Central
   PetscReal uv;
   uv=1.0/12.0*(-u[0]+7*u[1]+7*u[2]-u[3]);
   return(uv);
+}
+
+PetscReal Skew_Central_Flux(PetscReal u[4], PetscReal v[4]){
+	PetscReal uv;
+	// u[0] = u_i-1 , u[1] = u_i , u[2] = u_i+1, u[3] = u_i+2 
+	uv = 1.0/12.0 *( -u[3]*v[3] + 7*u[2]*v[2] + 7*u[1]*v[1] -u[0]*v[0] ) + 1./3.( 0.5* (u[2]*v[2]+ u[1]*v[1]) - (0.25* (u[2]+v[1])*(u[2]+v[1])) )
+	return uv
 }
 
 PetscReal ENO_QR(PetscReal Qm, PetscReal Q0, PetscReal Qp, PetscInt k)
@@ -3266,25 +3322,9 @@ PetscErrorCode formConvectionLES(UserCtx *user, Vec Conv, PetscInt istage)
     
   PetscOptionsGetReal(NULL, NULL, "-sigma_thrsh", &ks, NULL);
   
-  if (istage==0){
-    
-    /* DMDAVecRestoreArray(user->fda, user->Sigma, &sigma1); */
-    /* for (k=zs; k<ze; k++){ */
-    /*   for (j=ys; j<ye; j++){ */
-    /* 	for (i=xs; i<xe; i++){ */
-    /* 	  /\*  if (k<3 || k>mz-3){ */
-    /* 	      sigma1[k][j][i].y=.995; */
-    /* 	      sigma1[k][j][i].z=1.0; */
-    /* 	      }else{ */
-    /* 	  *\/ */
-    /* 	  sigma1[k][j][i].x=s_x; */
-    /* 	  sigma1[k][j][i].y=s_y; */
-    /* 	  sigma1[k][j][i].z=s_z; */
-    /* 	  //   } */
-	  
-    /* 	} */
-    /*   } */
-    /* } */
+  // Details on istage may be found in the Runge-Kutta subroutine (check-solvers.c). istage=0 is the first stage of RK4 implementation
+  if (istage==0){    
+
     VecStrideSet(user->Sigma, 0, s_x); 
     VecStrideSet(user->Sigma, 1, s_y); 
     VecStrideSet(user->Sigma, 2, s_z); 
@@ -3395,7 +3435,7 @@ PetscErrorCode formConvectionLES(UserCtx *user, Vec Conv, PetscInt istage)
 	DMDAVecRestoreArray(user->fda, user->lSigma, &lsigma);
 
 	DMGlobalToLocalBegin(user->fda, user->Sigma, INSERT_VALUES, user->lSigma);
-    	DMGlobalToLocalEnd(user->fda, user->Sigma, INSERT_VALUES, user->lSigma);
+    DMGlobalToLocalEnd(user->fda, user->Sigma, INSERT_VALUES, user->lSigma);
   }//end istage==0
 
   DMDAVecGetArray(user->fda, user->lSigma, &lsigma); 
@@ -3425,10 +3465,12 @@ PetscErrorCode formConvectionLES(UserCtx *user, Vec Conv, PetscInt istage)
     for (j=lys; j<lye; j++){
       for (i=lxs-1; i<lxe; i++){
 	
+	// 1/J x ∂ξ/∂xi -> calculate metrics at i+1/2
 	csiH.x = 0.5*(csi[k][j][i].x+csi[k][j][i+1].x);
 	csiH.y = 0.5*(csi[k][j][i].y+csi[k][j][i+1].y);
 	csiH.z = 0.5*(csi[k][j][i].z+csi[k][j][i+1].z);
 	
+	// sigma-> sigma_x for i direction flux calc
 	sigma=lsigma[k][j][i].x;
 	
 	// u0=q[k][j][i-1].rhoU
@@ -3439,22 +3481,28 @@ PetscErrorCode formConvectionLES(UserCtx *user, Vec Conv, PetscInt istage)
 	if (i>0 && i<mx-2) {
 
 	if ((nvert[k][j][i]+nvert[k][j][i+1]+nvert[k][j][i+2]+nvert[k][j][i-1])<2.9){	  
-	  for (a=-1;a<3;a++){
-	    L=i+a;
+	  for (a=-1;a<3;a++){ // {a-> -1,0,1,2}
+	    L=i+a; // L -> i-1, i, i+1, i+2
 	    m=1+a;
-	    r[m]=q[k][j][L].rho;
-	    u[m]=q[k][j][L].rhoU;
-	    v[m]=q[k][j][L].rhoV;
-	    w[m]=q[k][j][L].rhoW;
-	    e[m]=q[k][j][L].rhoE;
-	    pp_c[m]=p[k][j][L];
-	    ep[m]=pp_c[m]+e[m];
+		// Note that the values are central with respect to the i+1/2 node
+	    r[m]=q[k][j][L].rho; // r[m]-> 4 values of rho from i-1, i, i+1, i+2 
+	    u[m]=q[k][j][L].rhoU;// u[m]-> 4 values of rhoU from i-1, i, i+1, i+2
+	    v[m]=q[k][j][L].rhoV;// v[m]-> 4 values of rhoV from i-1, i, i+1, i+2
+	    w[m]=q[k][j][L].rhoW;// w[m]-> 4 values of rhoW from i-1, i, i+1, i+2
+	    e[m]=q[k][j][L].rhoE;// e[m]-> 4 values of rhoE from i-1, i, i+1, i+2
+	    pp_c[m]=p[k][j][L];  // p[m]-> 4 values of p from i-1, i, i+1, i+2
+	    ep[m]=pp_c[m]+e[m];	// ep[m]-> 4 values of p+rhoE from i-1, i, i+1, i+2
+
+		// Calculate the same array of contravariant velocity: Uₓᵢ = 1/ρ ( ρuᵢ ξᵢ ) {This loop (i-loop) calculates U_cont in csi direction}
 	    Ucont[m]=1./q[k][j][L].rho*(csi[k][j][L].x*q[k][j][L].rhoU+csi[k][j][L].y*q[k][j][L].rhoV+csi[k][j][L].z*q[k][j][L].rhoW);
 	  }
 	  
-	  
+	  // Pressure at i+1/2
 	  p_cent=0.5*(p[k][j][i]+p[k][j][i+1]);
 	  // rho_cent=0.5*(q[k][j][i].rho+q[k][j][i+1].rho);
+
+	  // Calculate the Central Convective Fluxes using different interpolation schemes
+	  // Note: this does not seem to follow the same central scheme as in the paper
 	  if (central==2){
 	    Fp_cent.rho =Fp_2(r,Ucont);
 	    Fp_cent.rhoU=Fp_2(u,Ucont)+Fp4(pp_c)*csiH.x;
@@ -3470,6 +3518,7 @@ PetscErrorCode formConvectionLES(UserCtx *user, Vec Conv, PetscInt istage)
 	    Fp_cent.rhoE=Fp_1(ep,Ucont);	      
 	  }
 	  else {
+		// Simple central approximation using averaging!
 	    rho_cent=0.5*(q[k][j][i].rho+q[k][j][i+1].rho);
 	    rhoU_cent=0.5*(q[k][j][i].rhoU+q[k][j][i+1].rhoU);
 	    rhoV_cent=0.5*(q[k][j][i].rhoV+q[k][j][i+1].rhoV);
@@ -3482,7 +3531,7 @@ PetscErrorCode formConvectionLES(UserCtx *user, Vec Conv, PetscInt istage)
 	    Fp_cent.rhoV =	rhoV_cent*Ucont_cent+0.5*(p[k][j][i]+p[k][j][i+1])*csiH.y;
 	    Fp_cent.rhoW =	rhoW_cent*Ucont_cent+0.5*(p[k][j][i]+p[k][j][i+1])*csiH.z;
 	    Fp_cent.rhoE =	Ucont_cent*(rhoE_cent+0.5*(p[k][j][i]+p[k][j][i+1]));	    	    
-	  }
+	}
 	  
 	} else { // if nvert> wall
 	  rho_cent =0.5*(q[k][j][i].rho +q[k][j][i+1].rho);
@@ -3514,7 +3563,7 @@ PetscErrorCode formConvectionLES(UserCtx *user, Vec Conv, PetscInt istage)
 	  Fp_cent.rhoW =      rhoW_cent*Ucont_cent+0.5*(p[k][j][i]+p[k][j][i+1])*csiH.z;
 	  Fp_cent.rhoE =      Ucont_cent*(rhoE_cent+0.5*(p[k][j][i]+p[k][j][i+1]));	  	  
 	}	
-	  	
+	// Done Calculating Central Fluxes!
 	
 	// calc F1 on i+1/2 nodes... i+1/2 saved in i 
 	//-Lax-Freidrich flux: F(QR,QL)=1/2(E(QR)+E(QL))-1/2|S(A)|(QR-QL)

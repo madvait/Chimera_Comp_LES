@@ -134,7 +134,7 @@ double integrate_testfilter(double val[3][3][3], double w[3][3][3])
 
 void Compute_Smagorinsky_Constant_1(UserCtx *user)
 {
-	PetscPrintf(PETSC_COMM_WORLD,"!!!Constant Smagorinsky!!!\n");
+	PetscPrintf(PETSC_COMM_WORLD,"!!!Compute Smagorinsky!!!\n");
   //if((user->ti<2 && user->tistart==0 && !user->rstart_flg) || les==10) { //New Comment // && tistart==0 && !rstart_flg){
     if((user->ti<2 && tistart==0 && !rstart_flg)|| les==10){
 	VecSet(user->CS, 0.0);
@@ -142,8 +142,10 @@ void Compute_Smagorinsky_Constant_1(UserCtx *user)
   }
   
   if(les==1) {
-    VecSet(user->CS, 0.03);
-	PetscPrintf(PETSC_COMM_WORLD,"Constant Smagorinsky Cs: 0.03\n");
+	// 0.2
+	PetscReal C_s = 0.03;
+    VecSet(user->CS, C_s);
+	PetscPrintf(PETSC_COMM_WORLD,"Constant Smagorinsky Cs: %f\n",C_s);
     return;
   }
 	double max_cs=0.05;
