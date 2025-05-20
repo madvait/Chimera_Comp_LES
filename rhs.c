@@ -2489,8 +2489,8 @@ PetscReal Fp4(PetscReal u[4])
 PetscReal Skew_Central_Flux(PetscReal u[4], PetscReal v[4]){
 	PetscReal uv;
 	// u[0] = u_i-1 , u[1] = u_i , u[2] = u_i+1, u[3] = u_i+2 
-	uv = 1.0/12.0 *( -u[3]*v[3] + 7*u[2]*v[2] + 7*u[1]*v[1] -u[0]*v[0] ) + 1./3.( 0.5* (u[2]*v[2]+ u[1]*v[1]) - (0.25* (u[2]+v[1])*(u[2]+v[1])) )
-	return uv
+	uv = 1.0/12.0 *( -u[3]*v[3] + 7*u[2]*v[2] + 7*u[1]*v[1] -u[0]*v[0] ) + 1./3.*( 0.5* (u[2]*v[2]+ u[1]*v[1]) - (0.25* (u[2]+v[1])*(u[2]+v[1])) );
+	return uv;
 }
 
 PetscReal ENO_QR(PetscReal Qm, PetscReal Q0, PetscReal Qp, PetscInt k)
