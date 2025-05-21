@@ -43,7 +43,7 @@ PetscErrorCode SetInitialCondition(UserCtx *user)
 
   CompVars	***q;
   PetscReal     u=1153, rho=0.00237, et=1719557; //Mach number M=1.5
-  PetscReal     ***p, Twall=1, pi=3.14159265;;
+  PetscReal     ***p, Twall=1., pi=3.14159265;;
   PetscInt      InitialGuessOne=0;
 
   PetscOptionsGetInt(NULL, NULL, "-init1", &InitialGuessOne, NULL);
@@ -166,10 +166,13 @@ PetscErrorCode SetInitialCondition(UserCtx *user)
 	  q[k][j][i].rhoW=1.0+0.1*(rand()%(1000)-500.)/500.0; //gamma*M; 
 	  q[k][j][i].rhoU=0.0;	   
 	  q[k][j][i].rhoV=0.0;
+		//Equation of state:
+
+	  q[k][j][i].rhoE= Twall/(M*M*gamma*(gamma-1))+(0.5*q[k][j][i].rhoW*q[k][j][i].rhoW);
 	  /* if (isothermal) */
 	  /*   q[k][j][i].rhoE=0.5+Twall/(M*M*gamma*(gamma-1)); */
 	  /* else */
-	  q[k][j][i].rhoE=0.5+1./(M*M*gamma*(gamma-1));	//*q[k][j][i].rhoW*q[k][j][i].rhoW
+	  //q[k][j][i].rhoE=0.5+1./(M*M*gamma*(gamma-1));	//*q[k][j][i].rhoW*q[k][j][i].rhoW
 	  if (i==0 && j==0 && k==0)  
 	    PetscPrintf(PETSC_COMM_WORLD, "!!init 5 M %f  rho %f rhoW 1  rhoE %f isothermal %d Tw %f \n", M, q[0][0][0].rho, q[0][0][0].rhoE, isothermal, Twall);
 	} else if (InitialGuessOne==55) {
@@ -1482,6 +1485,7 @@ PetscErrorCode formViscous(UserCtx *user, Vec Visc)
   
   DMDAVecGetArray(fda, user->lUcat,  &ucat);
   /* The visc flux on each surface center is stored at previous integer node */
+  /* Fluxes calculated to the "right" of node 0 to mx-2 (mx-1 being the last node)*/
   // i direction
   if (twoD!=1) {
   for (k=lzs; k<lze; k++) {
@@ -1494,7 +1498,7 @@ PetscErrorCode formViscous(UserCtx *user, Vec Visc)
 	dpdc = p[k][j][i+1]/q[k][j][i+1].rho - p[k][j][i]/q[k][j][i].rho;
 	
 	// ∂ui/∂η --> cartesian velocity gradient in curvilinear
-	if ((nvert[k][j+1][i  ]> solid && nvert[k][j+1][i  ]<innerblank)  ||
+	if ((nvert[k][j+1][i  ]> solid && nvert[k][j+1][i  ]<innerblank)  || // when j+1 nodes are unavailable
 	    (nvert[k][j+1][i+1]> solid && nvert[k][j+1][i+1]<innerblank)) {
 	  dude = (ucat[k][j  ][i+1].x + ucat[k][j  ][i].x -
 		  ucat[k][j-1][i+1].x - ucat[k][j-1][i].x) * 0.5;
@@ -1505,7 +1509,7 @@ PetscErrorCode formViscous(UserCtx *user, Vec Visc)
 	  dpde = (p[k][j  ][i+1]/q[k][j][i+1].rho + p[k][j  ][i]/q[k][j][i].rho -
 		  p[k][j-1][i+1]/q[k][j-1][i+1].rho - p[k][j-1][i]/q[k][j-1][i].rho) * 0.5;
 	}
-	else if  ((nvert[k][j-1][i  ]> solid && nvert[k][j-1][i  ]<innerblank)  ||
+	else if  ((nvert[k][j-1][i  ]> solid && nvert[k][j-1][i  ]<innerblank)  ||// when j-1 nodes are unavailable
 		  (nvert[k][j-1][i+1]> solid && nvert[k][j-1][i+1]<innerblank)) {
 	  dude = (ucat[k][j+1][i+1].x + ucat[k][j+1][i].x -
 		  ucat[k][j  ][i+1].x - ucat[k][j  ][i].x) * 0.5;
@@ -2124,6 +2128,7 @@ PetscErrorCode formViscous(UserCtx *user, Vec Visc)
 	DMDAVecGetArray(da, user->lBBeta, &bbeta);
 }
 
+	// Viscous RHS calculated for nodes 1 to mx-2 (both included) 0 and mx-1 is ignored!
   for (k=lzs; k<lze; k++) {
     for (j=lys; j<lye; j++) {
       for (i=lxs; i<lxe; i++) {	
@@ -4852,9 +4857,10 @@ PetscErrorCode EqOfState(UserCtx *user)
     for (j=ys; j<ye; j++){
       for (i=xs; i<xe; i++){
 	 // ideal gas law: rhoE=1/2 rho|u|^2+p/(gamma-1)
-	p[k][j][i]=(gamma-1)*(q[k][j][i].rhoE-0.5*(q[k][j][i].rhoU*q[k][j][i].rhoU+
-						   q[k][j][i].rhoV*q[k][j][i].rhoV+
-						   q[k][j][i].rhoW*q[k][j][i].rhoW)/q[k][j][i].rho);
+	p[k][j][i]=(gamma-1)*(q[k][j][i].rhoE-
+					       0.5*(q[k][j][i].rhoU*q[k][j][i].rhoU+
+						        q[k][j][i].rhoV*q[k][j][i].rhoV+
+						        q[k][j][i].rhoW*q[k][j][i].rhoW)/q[k][j][i].rho);
 
 	if (p[k][j][i]<0) PetscPrintf(PETSC_COMM_SELF, "!!! p<0 at i,j,k %d %d %d\n", i,j,k);
       }
@@ -4866,115 +4872,116 @@ PetscErrorCode EqOfState(UserCtx *user)
   DMGlobalToLocalBegin(da, user->P, INSERT_VALUES, user->lP);
   DMGlobalToLocalEnd(da, user->P, INSERT_VALUES, user->lP);
  
-  if (user->bctype[0]==7 || user->bctype[1]==7 ||
-      user->bctype[2]==7 || user->bctype[3]==7 || 
-      user->bctype[4]==7 || user->bctype[5]==7){
+	// Why is boundary condition being implemented in EOS?!
+//   if (user->bctype[0]==7 || user->bctype[1]==7 ||
+//       user->bctype[2]==7 || user->bctype[3]==7 || 
+//       user->bctype[4]==7 || user->bctype[5]==7){
     
     
     
-    DMDAVecGetArray(da, user->lP, &lp);
-    DMDAVecGetArray(da, user->P, &p);
+//     DMDAVecGetArray(da, user->lP, &lp);
+//     DMDAVecGetArray(da, user->P, &p);
     
-    //Loop Executed for i_periodic
-    if (user->bctype[0]==7 || user->bctype[1]==7){
-      if (xs==0){
-	i=xs;
-	for (k=zs; k<ze; k++) {
-	  for (j=ys; j<ye; j++) {
-	    if(k>0 && k<user->KM && j>0 && j<user->JM){
-	      p[k][j][i]=lp[k][j][i-2];
-	    }
-	  }
-	}
-      }
+//     //Loop Executed for i_periodic
+//     if (user->bctype[0]==7 || user->bctype[1]==7){
+//       if (xs==0){
+// 	i=xs;
+// 	for (k=zs; k<ze; k++) {
+// 	  for (j=ys; j<ye; j++) {
+// 	    if(k>0 && k<user->KM && j>0 && j<user->JM){
+// 	      p[k][j][i]=lp[k][j][i-2];
+// 	    }
+// 	  }
+// 	}
+//       }
       
-      if (xe==mx){
-	i=mx-1;
-	for (k=zs; k<ze; k++) {
-	  for (j=ys; j<ye; j++) {
-	    if(k>0 && k<user->KM && j>0 && j<user->JM){
-	      p[k][j][i]=lp[k][j][i+2];
+//       if (xe==mx){
+// 	i=mx-1;
+// 	for (k=zs; k<ze; k++) {
+// 	  for (j=ys; j<ye; j++) {
+// 	    if(k>0 && k<user->KM && j>0 && j<user->JM){
+// 	      p[k][j][i]=lp[k][j][i+2];
 	      
-	    }
-	  }
-	}
-      }
-    }
+// 	    }
+// 	  }
+// 	}
+//       }
+//     }
  
-     /* really needed below?  
-    DMDAVecRestoreArray(da, user->P, &p);
-    DMDAVecRestoreArray(da, user->lP, &lp);
-    DMGlobalToLocalBegin(da, user->P, INSERT_VALUES, user->lP);
-    DMGlobalToLocalEnd(da, user->P, INSERT_VALUES, user->lP);
+//      /* really needed below?  
+//     DMDAVecRestoreArray(da, user->P, &p);
+//     DMDAVecRestoreArray(da, user->lP, &lp);
+//     DMGlobalToLocalBegin(da, user->P, INSERT_VALUES, user->lP);
+//     DMGlobalToLocalEnd(da, user->P, INSERT_VALUES, user->lP);
   
-    DMDAVecGetArray(da, user->P, &p);
-    DMDAVecGetArray(da, user->lP, &lp);
-     */
-	// 
-	if (user->bctype[2]==7||user->bctype[3]==7){		// Advait: Brought back Amir's implementation of conditional
-    	if (ys==0){
-      		j=ys;
-      		for (k=zs; k<ze; k++) {
-				for (i=xs; i<xe; i++) {
-	  				if(k>0 && k<user->KM){
-	    				p[k][j][i]=lp[k][j-2][i];           
-	  				}
-				}
-      		}
-    	}
+//     DMDAVecGetArray(da, user->P, &p);
+//     DMDAVecGetArray(da, user->lP, &lp);
+//      */
+// 	// 
+// 	if (user->bctype[2]==7||user->bctype[3]==7){
+//     	if (ys==0){
+//       		j=ys;
+//       		for (k=zs; k<ze; k++) {
+// 				for (i=xs; i<xe; i++) {
+// 	  				if(k>0 && k<user->KM){
+// 	    				p[k][j][i]=lp[k][j-2][i];           
+// 	  				}
+// 				}
+//       		}
+//     	}
     
-    	if (ye==my){
-      		j=my-1;
-      		for (k=zs; k<ze; k++) {
-				for (i=xs; i<xe; i++) {
-	  				if(k>0 && k<user->KM ){
-	    				p[k][j][i]=lp[k][j+2][i];
-	    			}
-				}
-      		}
-    	}
-	}
-     /* Are these below needed? 
-    DMDAVecRestoreArray(da, user->P, &p);
-    DMDAVecRestoreArray(da, user->lP, &lp);
+//     	if (ye==my){
+//       		j=my-1;
+//       		for (k=zs; k<ze; k++) {
+// 				for (i=xs; i<xe; i++) {
+// 	  				if(k>0 && k<user->KM ){
+// 	    				p[k][j][i]=lp[k][j+2][i];
+// 	    			}
+// 				}
+//       		}
+//     	}
+// 	}
+//      /* Are these below needed? 
+//     DMDAVecRestoreArray(da, user->P, &p);
+//     DMDAVecRestoreArray(da, user->lP, &lp);
     
-    DMGlobalToLocalBegin(da, user->P, INSERT_VALUES, user->lP);
-    DMGlobalToLocalEnd(da, user->P, INSERT_VALUES, user->lP);
+//     DMGlobalToLocalBegin(da, user->P, INSERT_VALUES, user->lP);
+//     DMGlobalToLocalEnd(da, user->P, INSERT_VALUES, user->lP);
     
-    DMDAVecGetArray(da, user->lP, &lp);
-    DMDAVecGetArray(da, user->P, &p);
-     */
+//     DMDAVecGetArray(da, user->lP, &lp);
+//     DMDAVecGetArray(da, user->P, &p);
+//      */
 
-    if (user->bctype[4]==7 || user->bctype[5]==7){
-      if (zs==0){
-	k=zs;
-	for (j=ys; j<ye; j++) {
-	  for (i=xs; i<xe; i++) {
-	    if(i>0 && i<user->IM && j>0 && j<user->JM){
-	      p[k][j][i]=lp[k-2][j][i];
+//     if (user->bctype[4]==7 || user->bctype[5]==7){
+//       if (zs==0){
+// 	k=zs;
+// 	for (j=ys; j<ye; j++) {
+// 	  for (i=xs; i<xe; i++) {
+// 	    if(i>0 && i<user->IM && j>0 && j<user->JM){
+// 	      p[k][j][i]=lp[k-2][j][i];
 	      
-	    }
-	  }
-	}
-      }
+// 	    }
+// 	  }
+// 	}
+//       }
     
-      if (ze==mz){
-	k=mz-1;
-	for (j=ys; j<ye; j++) {
-	  for (i=xs; i<xe; i++) {
-	    if(i>0 && i<user->IM && j>0 && j<user->JM){
-	      p[k][j][i]=lp[k+2][j][i];
-	    }
-	  }
-	}
-      }
-    }
+//       if (ze==mz){
+// 	k=mz-1;
+// 	for (j=ys; j<ye; j++) {
+// 	  for (i=xs; i<xe; i++) {
+// 	    if(i>0 && i<user->IM && j>0 && j<user->JM){
+// 	      p[k][j][i]=lp[k+2][j][i];
+// 	    }
+// 	  }
+// 	}
+//       }
+//     }
   
-    DMDAVecRestoreArray(da, user->P, &p);
-    DMDAVecRestoreArray(da, user->lP, &lp);
-    DMGlobalToLocalBegin(da, user->P, INSERT_VALUES, user->lP);
-    DMGlobalToLocalEnd(da, user->P, INSERT_VALUES, user->lP);	
-    } // if periodic 7
+//     DMDAVecRestoreArray(da, user->P, &p);
+//     DMDAVecRestoreArray(da, user->lP, &lp);
+//     DMGlobalToLocalBegin(da, user->P, INSERT_VALUES, user->lP);
+//     DMGlobalToLocalEnd(da, user->P, INSERT_VALUES, user->lP);	
+//     } // if periodic 7
   
   return(0);
 

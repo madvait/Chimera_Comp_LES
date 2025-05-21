@@ -832,14 +832,14 @@ int main(int argc, char **argv)
       user[bi].ibmlist=(IBMList *)malloc(NumberOfBodies*sizeof(IBMList));
       //  PetscMalloc(NumberOfBodies*sizeof(IBMList), &(user[bi].ibmlist));
       for (ibi=0;ibi<NumberOfBodies;ibi++) {
-	InitIBMList(&(user[bi].ibmlist[ibi]));
+	      InitIBMList(&(user[bi].ibmlist[ibi]));
       }
       for (ibi=0;ibi<NumberOfBodies;ibi++) {
-	if (ansys) 
-	  ibm_read_Ansys(&ibm[ibi], ibi);
-	else
-	  ibm_read_ucd(&ibm[ibi], ibi);
-	ibm_surface_VTKOut(&ibm[ibi],ibi,0);
+	      if (ansys) 
+	        ibm_read_Ansys(&ibm[ibi], ibi);
+	      else
+	        ibm_read_ucd(&ibm[ibi], ibi);
+	      ibm_surface_VTKOut(&ibm[ibi],ibi,0);
       }
       if (fish) { 
 	ibi=0;
