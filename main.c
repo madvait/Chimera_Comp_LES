@@ -850,9 +850,9 @@ int main(int argc, char **argv)
 	
       }
 
-      for (ibi=0;ibi<NumberOfBodies;ibi++){
-	ibm_search_advanced(&user[bi],&ibm[ibi], ibi);
-    	PetscPrintf(PETSC_COMM_WORLD, "Search ibm %d\n",ibi);
+      for (ibi=0;ibi<NumberOfBodies;ibi++){ // Create The Nvert Field for the Domain by searching for Each Mesh
+	      ibm_search_advanced(&user[bi],&ibm[ibi], ibi);
+    	  PetscPrintf(PETSC_COMM_WORLD, "Search ibm %d\n",ibi);
       } 
     }    
   }

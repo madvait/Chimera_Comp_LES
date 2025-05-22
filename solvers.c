@@ -252,17 +252,22 @@ PetscErrorCode RungeKutta(UserCtx *user, IBMNodes *ibm,
 	  VecNorm(user[bi].Q, NORM_INFINITY, &normQ[bi]);
 	  PetscPrintf(PETSC_COMM_WORLD, "!!norm of RHS %le Q %le %le\n", normF_bk[bi], normQ[bi], user[bi].dt);
        	  // Advanced in time using RK scheme
+
 	  if (istage==0) // Calculates the First stage of the RK iteration
 	    VecWAXPY(user[bi].Q, alfa[istage] * user[bi].dt * user[bi].st, user[bi].Rhs, user[bi].Qold);
 	  else {
 	    /* Computes y = alpha x + beta y
 	       VecAXPBY(Vec y,PetscScalar alpha,PetscScalar beta,Vec x) 
 	       compute Q=alfa[istate]*Q+alfa[istage]*dt*RHS */
-	    VecAXPBY(user[bi].Q,  alfa[istage] * user[bi].dt * user[bi].st, alfa[istage], user[bi].Rhs);
+	    //VecAXPBY(user[bi].Q,  alfa[istage] * user[bi].dt * user[bi].st, alfa[istage], user[bi].Rhs);
 	    /* Computes y = alpha x + y.
 	       VecAXPY(Vec y,PetscScalar alpha,Vec x) 
 	       Compute Q=Q+ beta * Qn */
-	    VecAXPY(user[bi].Q, beta[istage], user[bi].Qold);
+	    //VecAXPY(user[bi].Q, beta[istage], user[bi].Qold);
+
+      /* Compute Q = beta[istage] Qn +  alfa[istage] dt RHS + alfa[istage] Q */
+      VecAXPBYPCZ(user[bi].Q, beta[istage],  alfa[istage] * user[bi].dt * user[bi].st, alfa[istage],  
+                              user[bi].Qold, user[bi].Rhs);
 	  }
 
        	  FormBCS(&user[bi], alfa[istage]);

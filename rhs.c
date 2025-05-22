@@ -1470,10 +1470,7 @@ PetscErrorCode formViscous(UserCtx *user, Vec Visc)
   
 
   
-  PetscReal ***lnu_t, nut_norm;
-
-  VecNorm(user->Nu_t,NORM_INFINITY,&nut_norm);
-  PetscPrintf(PETSC_COMM_WORLD,"Max Nu_t Set to %f\n", &nut_norm);
+  PetscReal ***lnu_t;
   
   if(les || rans) {
     DMDAVecGetArray(da, user->lNu_t, &lnu_t);
